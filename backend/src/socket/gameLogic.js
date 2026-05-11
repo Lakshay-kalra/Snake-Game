@@ -5,6 +5,9 @@ const createRoom = () => {
     return {
         players: {},
         food: generateFood([]),
+        pinkBallsEaten: 0,
+        bigFood: null,
+        bigFoodExpiresAt: 0,
         status: 'waiting', // waiting, playing, gameover
         countdown: 3
     };
@@ -37,7 +40,7 @@ const getRandomColor = () => {
     return colors[Math.floor(Math.random() * colors.length)];
 };
 
-const generateFood = (players) => {
+const generateFood = (players, existingFood = null) => {
     let newFood;
     let valid = false;
     while (!valid) {
@@ -56,6 +59,9 @@ const generateFood = (players) => {
                 }
             }
             if (!valid) break;
+        }
+        if (valid && existingFood && existingFood.x === newFood.x && existingFood.y === newFood.y) {
+            valid = false;
         }
     }
     return newFood;
@@ -111,10 +117,23 @@ const updateGame = (room) => {
         // Food Collision
         if (head.x === room.food.x && head.y === room.food.y) {
             player.score += 10;
-            room.food = generateFood(room.players);
+            room.pinkBallsEaten = (room.pinkBallsEaten || 0) + 1;
+            room.food = generateFood(room.players, room.bigFood);
+            
+            if (room.pinkBallsEaten % 5 === 0) {
+                room.bigFood = generateFood(room.players, room.food);
+                room.bigFoodExpiresAt = Date.now() + 5000;
+            }
+        } else if (room.bigFood && head.x === room.bigFood.x && head.y === room.bigFood.y) {
+            player.score += 20;
+            room.bigFood = null;
         } else {
             player.snake.pop();
         }
+    }
+
+    if (room.bigFood && Date.now() > room.bigFoodExpiresAt) {
+        room.bigFood = null;
     }
 
     if (Object.keys(room.players).length > 1 && aliveCount <= 1) {

@@ -84,13 +84,13 @@ const Multiplayer = () => {
 
         const size = canvas.width / GRID_SIZE;
 
-        const drawRect = (x, y, color, glowColor) => {
+        const drawRect = (x, y, color, glowColor, sizeMultiplier = 1) => {
             ctx.fillStyle = color;
             ctx.shadowBlur = glowColor ? 10 : 0;
             ctx.shadowColor = glowColor || 'transparent';
             // Make food round
             ctx.beginPath();
-            ctx.arc(x * size + size/2, y * size + size/2, size/2 - 1, 0, 2 * Math.PI);
+            ctx.arc(x * size + size/2, y * size + size/2, (size/2 - 1) * sizeMultiplier, 0, 2 * Math.PI);
             ctx.fill();
             ctx.shadowBlur = 0;
         };
@@ -172,6 +172,11 @@ const Multiplayer = () => {
         // Draw Food
         if (state.food) {
             drawRect(state.food.x, state.food.y, '#ff00ff', '#ff00ff');
+        }
+
+        // Draw Big Food
+        if (state.bigFood) {
+            drawRect(state.bigFood.x, state.bigFood.y, '#ffaa00', '#ffaa00', 1.8);
         }
 
         // Draw Players

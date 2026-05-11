@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Multiplayer from './pages/Multiplayer';
 import SinglePlayer from './pages/SinglePlayer';
+import AIBot from './pages/AIBot';
 import Navbar from './components/Navbar';
 import useAuthStore from './store/useAuthStore';
 
@@ -26,6 +27,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/singleplayer" element={<SinglePlayer />} />
+            <Route path="/ai-bot" element={<AIBot />} />
             
             <Route path="/dashboard" element={
               <ProtectedRoute>

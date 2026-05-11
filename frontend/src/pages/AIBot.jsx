@@ -4,19 +4,25 @@ import { useNavigate } from 'react-router-dom';
 const GRID_SIZE = 40;
 const INITIAL_SPEED = 100; // ms
 
-const SinglePlayer = () => {
+const AIBot = () => {
     const canvasRef = useRef(null);
     const [score, setScore] = useState(0);
+    const [aiScore, setAiScore] = useState(0);
     const [gameOver, setGameOver] = useState(false);
+    const [winnerText, setWinnerText] = useState('');
     const [isPaused, setIsPaused] = useState(false);
     const navigate = useNavigate();
 
     // Game state refs (to avoid stale closures in requestAnimationFrame)
     const stateRef = useRef({
-        snake: [{ x: 20, y: 20 }, { x: 20, y: 21 }, { x: 20, y: 22 }],
+        snake: [{ x: 10, y: 20 }, { x: 10, y: 21 }, { x: 10, y: 22 }],
         direction: { x: 0, y: -1 },
         nextDirection: { x: 0, y: -1 },
-        food: { x: 10, y: 10 },
+        
+        aiSnake: [{ x: 30, y: 20 }, { x: 30, y: 21 }, { x: 30, y: 22 }],
+        aiDirection: { x: 0, y: -1 },
+        
+        food: { x: 20, y: 20 },
         pinkBallsEaten: 0,
         bigFood: null,
         bigFoodExpiresAt: 0,
@@ -26,7 +32,7 @@ const SinglePlayer = () => {
 
     useEffect(() => {
         const handleKeyDown = (e) => {
-            const { direction, nextDirection } = stateRef.current;
+            const { direction } = stateRef.current;
             switch(e.key) {
                 case 'ArrowUp':
                 case 'w':
@@ -51,6 +57,8 @@ const SinglePlayer = () => {
                 case 'Escape':
                     setIsPaused(prev => !prev);
                     break;
+                default:
+                    break;
             }
         };
 
@@ -58,7 +66,7 @@ const SinglePlayer = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    const generateFood = (snake, existingFood = null) => {
+    const generateFood = (snake, aiSnake, existingFood = null) => {
         let valid = false;
         let newFood = { x: 0, y: 0 };
         while (!valid) {
@@ -73,6 +81,15 @@ const SinglePlayer = () => {
                     break;
                 }
             }
+            if (!valid) continue;
+
+            for (let segment of aiSnake) {
+                if (segment.x === newFood.x && segment.y === newFood.y) {
+                    valid = false;
+                    break;
+                }
+            }
+            
             if (valid && existingFood && existingFood.x === newFood.x && existingFood.y === newFood.y) {
                 valid = false;
             }
@@ -82,10 +99,14 @@ const SinglePlayer = () => {
 
     const resetGame = () => {
         stateRef.current = {
-            snake: [{ x: 20, y: 20 }, { x: 20, y: 21 }, { x: 20, y: 22 }],
+            snake: [{ x: 10, y: 20 }, { x: 10, y: 21 }, { x: 10, y: 22 }],
             direction: { x: 0, y: -1 },
             nextDirection: { x: 0, y: -1 },
-            food: generateFood([{ x: 20, y: 20 }, { x: 20, y: 21 }, { x: 20, y: 22 }]),
+            
+            aiSnake: [{ x: 30, y: 20 }, { x: 30, y: 21 }, { x: 30, y: 22 }],
+            aiDirection: { x: 0, y: -1 },
+            
+            food: generateFood([{ x: 10, y: 20 }, { x: 10, y: 21 }, { x: 10, y: 22 }], [{ x: 30, y: 20 }, { x: 30, y: 21 }, { x: 30, y: 22 }]),
             pinkBallsEaten: 0,
             bigFood: null,
             bigFoodExpiresAt: 0,
@@ -93,7 +114,9 @@ const SinglePlayer = () => {
             speed: INITIAL_SPEED
         };
         setScore(0);
+        setAiScore(0);
         setGameOver(false);
+        setWinnerText('');
         setIsPaused(false);
     };
 
@@ -107,14 +130,13 @@ const SinglePlayer = () => {
             ctx.fillStyle = color;
             ctx.shadowBlur = glowColor ? 10 : 0;
             ctx.shadowColor = glowColor || 'transparent';
-            // Make food round
             ctx.beginPath();
             ctx.arc(x * size + size/2, y * size + size/2, (size/2 - 1) * sizeMultiplier, 0, 2 * Math.PI);
             ctx.fill();
-            ctx.shadowBlur = 0; // reset
+            ctx.shadowBlur = 0;
         };
 
-        const drawSnakeSegment = (x, y, index, color, glowColor) => {
+        const drawSnakeSegment = (x, y, index, color, glowColor, direction) => {
             const size = canvas.width / GRID_SIZE;
             const px = x * size;
             const py = y * size;
@@ -128,10 +150,8 @@ const SinglePlayer = () => {
             ctx.arc(px + radius, py + radius, radius - 1, 0, 2 * Math.PI);
             ctx.fill();
             
-            // If it's the head, draw eyes and tongue
             if (index === 0) {
-                const { direction } = stateRef.current;
-                ctx.shadowBlur = 0; // Reset shadow for details
+                ctx.shadowBlur = 0;
                 
                 // Eyes
                 ctx.fillStyle = '#000000';
@@ -139,13 +159,11 @@ const SinglePlayer = () => {
                 let eye1X, eye1Y, eye2X, eye2Y;
                 
                 if (direction.x !== 0) {
-                    // Moving horizontally
                     eye1X = px + radius + (direction.x * size * 0.2);
                     eye1Y = py + radius - size * 0.25;
                     eye2X = px + radius + (direction.x * size * 0.2);
                     eye2Y = py + radius + size * 0.25;
                 } else {
-                    // Moving vertically
                     eye1X = px + radius - size * 0.25;
                     eye1Y = py + radius + (direction.y * size * 0.2);
                     eye2X = px + radius + size * 0.25;
@@ -161,27 +179,27 @@ const SinglePlayer = () => {
                 ctx.strokeStyle = '#ff0000';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
-                const tongueFlick = (Date.now() % 400 > 200) ? 3 : -3; // simple flick
+                const tongueFlick = (Date.now() % 400 > 200) ? 3 : -3;
                 
-                if (direction.x === 1) { // Right
+                if (direction.x === 1) {
                     ctx.moveTo(px + size, py + radius);
                     ctx.lineTo(px + size + size * 0.3, py + radius);
                     ctx.lineTo(px + size + size * 0.5, py + radius + tongueFlick);
                     ctx.moveTo(px + size + size * 0.3, py + radius);
                     ctx.lineTo(px + size + size * 0.5, py + radius - tongueFlick);
-                } else if (direction.x === -1) { // Left
+                } else if (direction.x === -1) {
                     ctx.moveTo(px, py + radius);
                     ctx.lineTo(px - size * 0.3, py + radius);
                     ctx.lineTo(px - size * 0.5, py + radius + tongueFlick);
                     ctx.moveTo(px - size * 0.3, py + radius);
                     ctx.lineTo(px - size * 0.5, py + radius - tongueFlick);
-                } else if (direction.y === 1) { // Down
+                } else if (direction.y === 1) {
                     ctx.moveTo(px + radius, py + size);
                     ctx.lineTo(px + radius, py + size + size * 0.3);
                     ctx.lineTo(px + radius + tongueFlick, py + size + size * 0.5);
                     ctx.moveTo(px + radius, py + size + size * 0.3);
                     ctx.lineTo(px + radius - tongueFlick, py + size + size * 0.5);
-                } else if (direction.y === -1) { // Up
+                } else if (direction.y === -1) {
                     ctx.moveTo(px + radius, py);
                     ctx.lineTo(px + radius, py - size * 0.3);
                     ctx.lineTo(px + radius + tongueFlick, py - size * 0.5);
@@ -191,15 +209,14 @@ const SinglePlayer = () => {
                 ctx.stroke();
             }
 
-            ctx.shadowBlur = 0; // reset
+            ctx.shadowBlur = 0;
         };
 
         const render = () => {
-            // Clear canvas
             ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const { snake, food, bigFood } = stateRef.current;
+            const { snake, aiSnake, food, bigFood, direction, aiDirection } = stateRef.current;
 
             // Draw Food
             drawRect(food.x, food.y, '#ff00ff', '#ff00ff');
@@ -209,70 +226,163 @@ const SinglePlayer = () => {
                 drawRect(bigFood.x, bigFood.y, '#ffaa00', '#ffaa00', 1.8);
             }
 
-            // Draw Snake
+            // Draw Player Snake
             snake.forEach((segment, index) => {
                 const color = index === 0 ? '#ffffff' : '#00ff00';
                 const glow = index === 0 ? '#ffffff' : '#00ff00';
-                drawSnakeSegment(segment.x, segment.y, index, color, glow);
+                drawSnakeSegment(segment.x, segment.y, index, color, glow, direction);
+            });
+
+            // Draw AI Snake
+            aiSnake.forEach((segment, index) => {
+                const color = index === 0 ? '#ffffff' : '#00ffff';
+                const glow = index === 0 ? '#ffffff' : '#00ffff';
+                drawSnakeSegment(segment.x, segment.y, index, color, glow, aiDirection);
             });
         };
 
         const update = (time) => {
             if (gameOver || isPaused) return;
 
-            const secondsSinceLastRender = (time - stateRef.current.lastRenderTime);
-            if (secondsSinceLastRender < stateRef.current.speed) {
+            const msSinceLastRender = (time - stateRef.current.lastRenderTime);
+            if (msSinceLastRender < stateRef.current.speed) {
                 animationFrameId = requestAnimationFrame(gameLoop);
                 return;
             }
 
             stateRef.current.lastRenderTime = time;
 
+            // Update Player Direction
             stateRef.current.direction = stateRef.current.nextDirection;
             const head = { ...stateRef.current.snake[0] };
             head.x += stateRef.current.direction.x;
             head.y += stateRef.current.direction.y;
 
+            // AI Logic
+            const headAI = { ...stateRef.current.aiSnake[0] };
+            const target = stateRef.current.bigFood || stateRef.current.food;
+            let possibleMoves = [
+                { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }
+            ];
+            
+            const currentAiDir = stateRef.current.aiDirection;
+            possibleMoves = possibleMoves.filter(m => !(m.x === -currentAiDir.x && m.y === -currentAiDir.y));
+
+            const isSafe = (move) => {
+                const nextX = headAI.x + move.x;
+                const nextY = headAI.y + move.y;
+                if (nextX < 0 || nextX >= GRID_SIZE || nextY < 0 || nextY >= GRID_SIZE) return false;
+                for (let segment of stateRef.current.aiSnake) {
+                    if (segment.x === nextX && segment.y === nextY) return false;
+                }
+                for (let segment of stateRef.current.snake) {
+                    // Avoid player's body and where player might be next (simplification: just avoid body)
+                    if (segment.x === nextX && segment.y === nextY) return false;
+                }
+                return true;
+            };
+
+            const safeMoves = possibleMoves.filter(isSafe);
+            let bestMove = null;
+            let minDistance = Infinity;
+
+            for (let move of safeMoves) {
+                const nextX = headAI.x + move.x;
+                const nextY = headAI.y + move.y;
+                const distance = Math.abs(nextX - target.x) + Math.abs(nextY - target.y);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestMove = move;
+                }
+            }
+
+            if (bestMove) {
+                stateRef.current.aiDirection = bestMove;
+            } else if (safeMoves.length > 0) {
+                stateRef.current.aiDirection = safeMoves[0];
+            }
+
+            headAI.x += stateRef.current.aiDirection.x;
+            headAI.y += stateRef.current.aiDirection.y;
+
+            // Check collisions
+            let playerDied = false;
+            let aiDied = false;
+
             // Wall collision
-            if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
+            if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) playerDied = true;
+            if (headAI.x < 0 || headAI.x >= GRID_SIZE || headAI.y < 0 || headAI.y >= GRID_SIZE) aiDied = true;
+
+            // Self collision
+            for (let segment of stateRef.current.snake) {
+                if (segment.x === head.x && segment.y === head.y) playerDied = true;
+            }
+            for (let segment of stateRef.current.aiSnake) {
+                if (segment.x === headAI.x && segment.y === headAI.y) aiDied = true;
+            }
+
+            // Cross collision
+            for (let segment of stateRef.current.aiSnake) {
+                if (segment.x === head.x && segment.y === head.y) playerDied = true;
+            }
+            for (let segment of stateRef.current.snake) {
+                if (segment.x === headAI.x && segment.y === headAI.y) aiDied = true;
+            }
+
+            // Head to head collision
+            if (head.x === headAI.x && head.y === headAI.y) {
+                playerDied = true;
+                aiDied = true;
+            }
+
+            if (playerDied || aiDied) {
+                if (playerDied && aiDied) setWinnerText('Draw!');
+                else if (playerDied) setWinnerText('AI Wins!');
+                else setWinnerText('You Win!');
                 setGameOver(true);
                 return;
             }
 
-            // Self collision
-            for (let segment of stateRef.current.snake) {
-                if (segment.x === head.x && segment.y === head.y) {
-                    setGameOver(true);
-                    return;
-                }
-            }
-
             stateRef.current.snake.unshift(head);
+            stateRef.current.aiSnake.unshift(headAI);
 
-            // Food collision
+            // Food collision Player
+            let playerAte = false;
             if (head.x === stateRef.current.food.x && head.y === stateRef.current.food.y) {
                 setScore(s => s + 10);
                 stateRef.current.pinkBallsEaten++;
-                stateRef.current.food = generateFood(stateRef.current.snake, stateRef.current.bigFood);
-                
-                if (stateRef.current.pinkBallsEaten % 5 === 0) {
-                    stateRef.current.bigFood = generateFood(stateRef.current.snake, stateRef.current.food);
-                    stateRef.current.bigFoodExpiresAt = time + 5000; // 5 seconds from now
-                }
-
-                // Increase speed
-                if (stateRef.current.speed > 40) {
-                    stateRef.current.speed -= 2;
-                }
+                playerAte = true;
             } else if (stateRef.current.bigFood && head.x === stateRef.current.bigFood.x && head.y === stateRef.current.bigFood.y) {
-                setScore(s => s + 20); // value of 2 pink balls
+                setScore(s => s + 20);
                 stateRef.current.bigFood = null;
-                // Increase speed for big food too
-                if (stateRef.current.speed > 40) {
-                    stateRef.current.speed -= 2;
-                }
             } else {
                 stateRef.current.snake.pop();
+            }
+
+            // Food collision AI
+            let aiAte = false;
+            if (!playerAte && headAI.x === stateRef.current.food.x && headAI.y === stateRef.current.food.y) {
+                setAiScore(s => s + 10);
+                stateRef.current.pinkBallsEaten++;
+                aiAte = true;
+            } else if (!playerAte && stateRef.current.bigFood && headAI.x === stateRef.current.bigFood.x && headAI.y === stateRef.current.bigFood.y) {
+                setAiScore(s => s + 20);
+                stateRef.current.bigFood = null;
+            } else {
+                stateRef.current.aiSnake.pop();
+            }
+
+            if (playerAte || aiAte) {
+                stateRef.current.food = generateFood(stateRef.current.snake, stateRef.current.aiSnake, stateRef.current.bigFood);
+                
+                if (stateRef.current.pinkBallsEaten % 5 === 0) {
+                    stateRef.current.bigFood = generateFood(stateRef.current.snake, stateRef.current.aiSnake, stateRef.current.food);
+                    stateRef.current.bigFoodExpiresAt = time + 5000;
+                }
+
+                if (stateRef.current.speed > 40) {
+                    stateRef.current.speed -= 2;
+                }
             }
 
             if (stateRef.current.bigFood && time > stateRef.current.bigFoodExpiresAt) {
@@ -287,7 +397,6 @@ const SinglePlayer = () => {
             update(time);
         };
 
-        // Initial render
         render();
         animationFrameId = requestAnimationFrame(gameLoop);
 
@@ -299,10 +408,11 @@ const SinglePlayer = () => {
             <div className="glass-card p-6 rounded-2xl max-w-4xl w-full flex flex-col md:flex-row gap-8">
                 <div className="flex-1 flex flex-col items-center">
                     <div className="mb-4 flex justify-between w-full text-xl font-bold">
-                        <span className="text-primary neon-text-primary">SCORE: {score}</span>
+                        <span className="text-primary neon-text-primary">YOU: {score}</span>
+                        <span className="text-[#00ffff] font-bold" style={{ textShadow: '0 0 10px #00ffff' }}>AI: {aiScore}</span>
                     </div>
                     
-                    <div className="relative p-1 bg-white/5 rounded-lg neon-box-primary border border-primary/30">
+                    <div className="relative p-1 bg-white/5 rounded-lg border border-white/30">
                         <canvas
                             ref={canvasRef}
                             width={600}
@@ -312,10 +422,10 @@ const SinglePlayer = () => {
                         
                         {(gameOver || isPaused) && (
                             <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center rounded-md backdrop-blur-sm">
-                                <h2 className="text-4xl font-bold mb-4 neon-text-secondary text-secondary">
-                                    {gameOver ? 'GAME OVER' : 'PAUSED'}
+                                <h2 className="text-4xl font-bold mb-4 text-white neon-text-primary">
+                                    {gameOver ? winnerText : 'PAUSED'}
                                 </h2>
-                                <p className="text-2xl mb-6">Final Score: {score}</p>
+                                <p className="text-2xl mb-6">You: {score} - AI: {aiScore}</p>
                                 <div className="flex gap-4">
                                     <button 
                                         onClick={resetGame}
@@ -357,4 +467,4 @@ const SinglePlayer = () => {
     );
 };
 
-export default SinglePlayer;
+export default AIBot;
